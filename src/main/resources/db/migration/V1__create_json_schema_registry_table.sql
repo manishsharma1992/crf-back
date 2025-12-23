@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS json_schema_registry (
     -- Schema Information
     schema_version INTEGER NOT NULL DEFAULT 1,
     json_schema JSONB NOT NULL,
-    json_schema_standard VARCHAR(20) NOT NULL DEFAULT 'draft-07',
+    json_schema_standard VARCHAR(20) NOT NULL DEFAULT '2020-12',
 
     -- Lifecycle Management
     active BOOLEAN NOT NULL DEFAULT true,
@@ -35,9 +35,9 @@ CREATE TABLE IF NOT EXISTS json_schema_registry (
     validation_notes TEXT,
 
     -- Audit Fields
-    created_by VARCHAR(100) NOT NULL,
+    created_by VARCHAR(100) NOT NULL DEFAULT 'SYSTEM',
     created_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    modified_by VARCHAR(100),
+    modified_by VARCHAR(100) NOT NULL DEFAULT 'SYSTEM',
     modified_timestamp TIMESTAMP
     );
 

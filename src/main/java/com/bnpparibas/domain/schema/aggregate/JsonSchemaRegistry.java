@@ -4,6 +4,7 @@ import com.bnpparibas.domain.schema.value.RatingMechanism;
 import com.bnpparibas.domain.schema.value.RatingModel;
 import com.bnpparibas.domain.schema.value.RatingModelVersion;
 import com.bnpparibas.domain.schema.value.SchemaVersion;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
 import jakarta.persistence.*;

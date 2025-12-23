@@ -5,16 +5,16 @@ import com.bnpparibas.domain.datadictionary.value.DataDictionaryField;
 import com.bnpparibas.domain.schema.value.DataTypeInfo;
 import com.bnpparibas.domain.schema.value.NumericBounds;
 import com.bnpparibas.domain.schema.value.SqlDataType;
-import com.github.victools.jsonschema.generator.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.node.ArrayNode;
-import tools.jackson.databind.node.ObjectNode;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -28,10 +28,22 @@ public class JsonSchemaGeneratorService {
 
     private final ObjectMapper objectMapper;
 
+    /**
+     * Pattern to extract length from varchar(n) or char(n)
+     * Example: varchar(255) -> groups: [varchar, 255]
+     */
     private static final Pattern LENGTH_PATTERN = Pattern.compile("(varchar|char)\\s*\\(\\s*(\\d+)\\s*\\)", Pattern.CASE_INSENSITIVE);
 
+    /**
+     * Pattern to extract precision and scale from numeric(p,s)
+     * Example: numeric(14,10) -> groups: [14, 10]
+     */
     private static final Pattern NUMERIC_PATTERN = Pattern.compile("numeric\\s*\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)", Pattern.CASE_INSENSITIVE);
 
+    /**
+     * Pattern to detect array types
+     * Example: string[] -> group: [string]
+     */
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.+)\\[\\s*\\]");
 
     /**
@@ -214,6 +226,8 @@ public class JsonSchemaGeneratorService {
             int precision = Integer.parseInt(numericMatcher.group(1));
             int scale = Integer.parseInt(numericMatcher.group(2));
 
+            validateNumericPrecisionScale(precision, scale, normalized);
+
             // Determine if it's numeric or decimal
             String baseType = normalized.split("\\(")[0].trim();
             SqlDataType sqlType = SqlDataType.fromString(baseType);
@@ -227,6 +241,16 @@ public class JsonSchemaGeneratorService {
             String baseType = lengthMatcher.group(1);
             int length = Integer.parseInt(lengthMatcher.group(2));
 
+            // ADD VALIDATION
+            if (length <= 0) {
+                throw new IllegalArgumentException(
+                        String.format("Length must be positive for type: %s", normalized)
+                );
+            }
+            if (length > 10485760) { // PostgreSQL varchar limit
+                log.warn("Length {} exceeds PostgreSQL varchar limit for type: {}", length, normalized);
+            }
+
             SqlDataType sqlType = SqlDataType.fromString(baseType);
             return DataTypeInfo.stringWithLength(sqlType, length);
         }
@@ -234,6 +258,29 @@ public class JsonSchemaGeneratorService {
         // Simple type without parameters
         SqlDataType sqlType = SqlDataType.fromString(normalized);
         return DataTypeInfo.simple(sqlType);
+    }
+
+    private void validateNumericPrecisionScale(int precision, int scale, String originalType) {
+        if (precision <= 0) {
+            throw new IllegalArgumentException(
+                    String.format("Precision must be positive for type: %s", originalType)
+            );
+        }
+        if (scale < 0) {
+            throw new IllegalArgumentException(
+                    String.format("Scale cannot be negative for type: %s", originalType)
+            );
+        }
+        if (scale > precision) {
+            throw new IllegalArgumentException(
+                    String.format("Scale (%d) cannot be greater than precision (%d) for type: %s",
+                            scale, precision, originalType)
+            );
+        }
+        if (precision > 1000) { // PostgreSQL limit
+            log.warn("Precision {} exceeds typical PostgreSQL limit of 1000 for type: {}",
+                    precision, originalType);
+        }
     }
 
     private void addStringConstraints(ObjectNode fieldDef, DataDictionaryField field, DataTypeInfo typeInfo) {
@@ -356,6 +403,10 @@ public class JsonSchemaGeneratorService {
 
             fieldDef.set("items", items);
         } else {
+
+            log.warn("Array type without element type info for field: {}, defaulting to string[]",
+                    field.fieldPath());
+
             // Fallback: default to string array
             ObjectNode items = objectMapper.createObjectNode();
             items.put("type", "string");
@@ -464,15 +515,26 @@ public class JsonSchemaGeneratorService {
      * Min value = -9999.9999999999
      */
     private NumericBounds calculateNumericBounds(int precision, int scale) {
+
+        if (precision <= 0 || scale < 0 || scale > precision) {
+            throw new IllegalArgumentException(
+                    String.format("Invalid numeric type: precision=%d, scale=%d", precision, scale)
+            );
+        }
+
         // Calculate maximum number of digits before the decimal point
         int integerDigits = precision - scale;
 
         if (integerDigits <= 0) {
             // All digits are after decimal (e.g., numeric(5,5) = 0.99999)
             BigDecimal max = BigDecimal.ONE.subtract(
-                    BigDecimal.ONE.divide(BigDecimal.TEN.pow(scale), scale, BigDecimal.ROUND_DOWN)
+                    BigDecimal.ONE.divide(BigDecimal.TEN.pow(scale), scale, RoundingMode.DOWN)
             );
             return new NumericBounds(max.negate().doubleValue(), max.doubleValue());
+        }
+
+        if (precision > 308) {  // Double.MAX_VALUE is ~10^308
+            log.warn("Precision {} may cause overflow when converting to double. Consider using String validation.", precision);
         }
 
         // Build max value: e.g., for (14,10) -> 9999.9999999999
@@ -498,7 +560,7 @@ public class JsonSchemaGeneratorService {
     }
 
     private String buildSchemaId(DataDictionaryEntry entry) {
-        return String.format("https://company.com/schemas/%s/%s/%s/model-specific-overrides.json",
+        return String.format("https://bnpparibas.com/schemas/%s/%s/%s/model-specific-overrides.json",
                 entry.ratingModel().modelName().toLowerCase(),
                 entry.ratingModelVersion().version(),
                 entry.ratingMechanism().getValue().toLowerCase());
@@ -535,7 +597,7 @@ public class JsonSchemaGeneratorService {
             desc.append(field.fieldDescription());
         }
 
-        return desc.toString();
+        return desc.length() > 0 ? desc.toString() : null;
     }
 
     private String extractTopLevelFieldName(String jsonbPath) {
