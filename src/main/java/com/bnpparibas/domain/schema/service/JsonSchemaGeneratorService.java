@@ -35,17 +35,17 @@ public class JsonSchemaGeneratorService {
     private static final Pattern LENGTH_PATTERN = Pattern.compile("(varchar|char)\\s*\\(\\s*(\\d+)\\s*\\)", Pattern.CASE_INSENSITIVE);
 
     /**
-     * Pattern to extract precision and scale from numeric(p,s)
-     * Example: numeric(14,10) -> groups: [14, 10]
+     * Pattern to extract precision and scale from numeric(p,s) or decimal(p,s)
+     * Example: numeric(14,10) -> groups: [numeric, 14, 10]
+     * Example: decimal(18,4) -> groups: [decimal, 18, 4]
      */
-    private static final Pattern NUMERIC_PATTERN = Pattern.compile("numeric\\s*\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern NUMERIC_PATTERN = Pattern.compile("(numeric|decimal)\\s*\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)", Pattern.CASE_INSENSITIVE);
 
     /**
      * Pattern to detect array types
      * Example: string[] -> group: [string]
      */
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.+)\\[\\s*\\]");
-
     /**
      * Generate JSON Schema 2020-12 from Data Dictionary Entry
      */
@@ -223,13 +223,16 @@ public class JsonSchemaGeneratorService {
         // Check for numeric with precision and scale: numeric(14,10), decimal(10,2)
         Matcher numericMatcher = NUMERIC_PATTERN.matcher(normalized);
         if (numericMatcher.matches()) {
-            int precision = Integer.parseInt(numericMatcher.group(1));
-            int scale = Integer.parseInt(numericMatcher.group(2));
+            // Group 1: type (numeric or decimal)
+            // Group 2: precision
+            // Group 3: scale
+            int precision = Integer.parseInt(numericMatcher.group(2));
+            int scale = Integer.parseInt(numericMatcher.group(3));
 
             validateNumericPrecisionScale(precision, scale, normalized);
 
-            // Determine if it's numeric or decimal
-            String baseType = normalized.split("\\(")[0].trim();
+            // Use the captured type from regex
+            String baseType = numericMatcher.group(1);
             SqlDataType sqlType = SqlDataType.fromString(baseType);
 
             return DataTypeInfo.numeric(sqlType, precision, scale);
@@ -241,7 +244,7 @@ public class JsonSchemaGeneratorService {
             String baseType = lengthMatcher.group(1);
             int length = Integer.parseInt(lengthMatcher.group(2));
 
-            // ADD VALIDATION
+            // Validation
             if (length <= 0) {
                 throw new IllegalArgumentException(
                         String.format("Length must be positive for type: %s", normalized)

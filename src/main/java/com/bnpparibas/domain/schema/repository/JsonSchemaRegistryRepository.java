@@ -21,6 +21,16 @@ public interface JsonSchemaRegistryRepository {
     );
 
     /**
+     * Find all schemas
+     */
+    List<JsonSchemaRegistry> findAll();
+
+    /**
+     * Find schema by ID
+     */
+    Optional<JsonSchemaRegistry> findById(Long id);
+
+    /**
      * Find all active schemas
      */
     List<JsonSchemaRegistry> findByActiveTrue();
@@ -35,4 +45,8 @@ public interface JsonSchemaRegistryRepository {
     );
 
     JsonSchemaRegistry save(JsonSchemaRegistry jsonSchemaRegistry);
+
+    long count();
+
+    void deleteAll();
 }

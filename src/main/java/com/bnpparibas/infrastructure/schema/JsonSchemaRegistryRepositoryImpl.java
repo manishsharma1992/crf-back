@@ -23,6 +23,16 @@ public class JsonSchemaRegistryRepositoryImpl implements JsonSchemaRegistryRepos
     }
 
     @Override
+    public List<JsonSchemaRegistry> findAll() {
+        return jsonSchemaRegistryDAO.findAll();
+    }
+
+    @Override
+    public Optional<JsonSchemaRegistry> findById(Long id) {
+        return jsonSchemaRegistryDAO.findById(id);
+    }
+
+    @Override
     public List<JsonSchemaRegistry> findByActiveTrue() {
         return jsonSchemaRegistryDAO.findByActiveTrue();
     }
@@ -35,5 +45,15 @@ public class JsonSchemaRegistryRepositoryImpl implements JsonSchemaRegistryRepos
     @Override
     public JsonSchemaRegistry save(JsonSchemaRegistry jsonSchemaRegistry) {
         return jsonSchemaRegistryDAO.save(jsonSchemaRegistry);
+    }
+
+    @Override
+    public long count() {
+        return jsonSchemaRegistryDAO.count();
+    }
+
+    @Override
+    public void deleteAll() {
+        jsonSchemaRegistryDAO.deleteAll();
     }
 }
