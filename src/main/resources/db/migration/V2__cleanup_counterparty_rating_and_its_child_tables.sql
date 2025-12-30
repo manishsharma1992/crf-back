@@ -16,8 +16,8 @@
 
 DO $$
 DECLARE
-   column_name TEXT;
-   columns_to_drop TEXT[] := ARRAY[
+    col_name TEXT;
+    columns_to_drop TEXT[] := ARRAY[
                     'main_industry_id',
                     'main_industry_override_comment',
                     'country_of_business_id',
@@ -67,7 +67,7 @@ DECLARE
                    ];
 BEGIN
     RAISE NOTICE 'Starting counterparty_rating table cleanup...';
-    FOREACH column_name IN ARRAY columns_to_drop
+    FOREACH col_name IN ARRAY columns_to_drop
     LOOP
         -- Check if column exists before dropping
         IF EXISTS (
@@ -75,12 +75,12 @@ BEGIN
             FROM information_schema.columns
             WHERE
                 table_name = 'counterparty_rating'
-                AND column_name = column_name
+                AND column_name = col_name
         ) THEN
-            EXECUTE format('ALTER TABLE counterparty_rating DROP COLUMN %I;', column_name);
-            RAISE NOTICE '✓ Dropped column: %', column_name;
+            EXECUTE format('ALTER TABLE counterparty_rating DROP COLUMN %I;', col_name);
+            RAISE NOTICE '✓ Dropped column: %', col_name;
         ELSE
-            RAISE NOTICE 'Column % does not exists, skipping', column_name;
+            RAISE NOTICE 'Column % does not exists, skipping', col_name;
         END IF;
     END LOOP;
 

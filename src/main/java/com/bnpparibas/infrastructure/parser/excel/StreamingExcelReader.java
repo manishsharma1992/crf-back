@@ -1,5 +1,6 @@
 package com.bnpparibas.infrastructure.parser.excel;
 
+import com.bnpparibas.infrastructure.parser.excel.util.SecureXmlParserFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.openxml4j.opc.OPCPackage;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -73,12 +74,12 @@ public class StreamingExcelReader {
             StylesTable stylesTable,
             RowProcessor rowProcessor) throws Exception {
 
-        SAXParserFactory saxFactory = SAXParserFactory.newInstance();
+        SAXParserFactory saxFactory = SecureXmlParserFactory.createSecureSAXParserFactory();
         SAXParser saxParser = saxFactory.newSAXParser();
         XMLReader xmlReader = saxParser.getXMLReader();
 
         SheetHandler handler = new SheetHandler(
-                sharedStrings,  // ✅ CHANGED
+                sharedStrings,
                 stylesTable,
                 dataFormatter,
                 rowProcessor
